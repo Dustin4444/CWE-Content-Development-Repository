@@ -1,0 +1,162 @@
+SUBMISSION COMMUNICATION ID: ES2609-7b54439f
+
+ACTION TYPE: New Entry
+
+SUBMISSION STATUS: Ack-Receipt
+
+AFFECTED CWES: 
+
+ORIGIN: sub-server
+
+SUBMISSION DATE: 2026-09-15 23:10:09
+
+ISSUES: not-analyzed
+
+ISSUE DETAILS: 
+
+PUBTRACKER: #224
+
+MTRACKER: #1384
+
+GITHUBUSER: abdullahzarshaid
+
+SUBMISSION TYPE: Software
+
+NAME: Improper Enforcement of Explicit Session Termination
+
+DESCRIPTION:
+
+The product accepts and reports an explicit session-termination event as
+successful, but continues to accept a session-bound authenticator or to
+authorize new protected operations within the event's declared termination
+scope.
+
+Behavior: the product fails to enforce a successfully-invoked
+security-state transition (termination). Property: authorization/session
+state remains usable when it should have been withdrawn. Resource: a
+security session, a session-bound authenticator (session cookie, access or
+refresh token, session identifier), or the associated authorization state.
+
+The primary termination events are explicit logout/sign-out, RP-initiated
+or back-channel (federated) logout, and explicit session or token
+revocation. Password reset/change and administrative account disablement
+are in scope only where the product or its documentation defines that event
+as terminating or revoking active session authority. A self-contained token
+that merely remains cryptographically unexpired is not in scope unless the
+invoked termination event was intended to revoke it (the declared
+termination scope).
+
+Required conditions (all present): (1) an authenticated session or
+authorization state exists; (2) an explicit termination event occurs and is
+accepted/reported as successful; (3) the event defines or communicates a
+termination scope; (4) an authenticator or authorization state lies within
+that scope; (5) the product accepts the stale authenticator for a new
+protected operation after termination.
+
+Distinction from time-driven expiration: this weakness is event-driven, not
+time-driven. MITRE's current maintenance note on CWE-613 states that a
+session not fully invalidated or terminated upon logout is "a different
+weakness than the original intention for this entry" and that, as of CWE
+4.19.1, "there is no entry that covers this other variation"; CWE-613 is
+also noted as under consideration for restructuring/deprecation.
+
+Distinction from CDR issue #184 ("Use of Unbound, Reusable Authentication
+Artifact"): #184 concerns authentication artifacts whose possession alone
+is reusable because adequate binding is absent, a defect present from
+issuance. This proposal concerns failure to enforce an explicit terminal
+state transition, and can occur even when an authenticator is appropriately
+bound and stateful: after a successful termination event, an in-scope
+authenticator continues to authorize protected operations. Either weakness
+can exist without the other, and some implementations may exhibit both.
+
+Suggested taxonomy treatment: a Base-level weakness, ChildOf CWE-672
+(Operation on a Resource after Expiration or Release), PeerOf CWE-613;
+suggested MemberOf CWE-1018 and CWE-1217. This weakness is related to but
+distinct from CWE-384 (Session Fixation): session fixation concerns
+continued use of an existing or attacker-known session identifier across
+authentication, whereas this proposal concerns failure to enforce an
+explicit termination event after authentication. Because CWE-613 is under
+consideration for restructuring, the submitter requests that the CWE
+Content Team determine whether this behavior is best represented as a new
+Base weakness or as part of a CWE-613 split/restructuring that preserves
+the distinction between time-driven expiration and explicit event-driven
+termination.
+
+RELATED WEAKNESSES:
+
+   ChildOf CWE-672
+
+REFERENCES:
+
+Title: CWE-613: Insufficient Session Expiration - maintenance note documenting the logout/termination gap
+URL: https://cwe.mitre.org/data/definitions/613.html
+
+Title: CWE-672: Operation on a Resource after Expiration or Release (proposed parent)
+URL: https://cwe.mitre.org/data/definitions/672.html
+
+Title: CDR issue #184 - "Use of Unbound, Reusable Authentication Artifact" (adjacent submission; distinguished in this proposal)
+URL: https://github.com/CWE-CAPEC/CWE-Content-Development-Repository/issues/184
+
+Title: OpenID Connect RP-Initiated Logout 1.0
+URL: https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+
+Title: IETF RFC 7009: OAuth 2.0 Token Revocation
+URL: https://www.rfc-editor.org/rfc/rfc7009.html
+
+Title: CVE-2023-25562 (DataHub): server-side session cookie remains valid after logout; mapped CWE-613
+URL: https://osv.dev/vulnerability/CVE-2023-25562
+
+Title: CVE-2026-48726 (Apache Airflow): logout path fails to reach token revocation; JWT valid until expiry
+URL: https://github.com/advisories/GHSA-vr7m-c6v4-8cx8
+
+
+ACTIVE ISSUES:
+
+
+
+RESOLVED ISSUES:
+
+
+
+TIMELINE:
+
+Received: 2026-09-15
+
+Ack-Receipt: 2026-09-21
+
+Init-Review: YYYY-MM-DD
+
+Init-Consultation: YYYY-MM-DD
+
+Init-Declined: YYYY-MM-DD
+
+Init-Accepted: YYYY-MM-DD
+
+Det-Requested: YYYY-MM-DD
+
+Det-Received: YYYY-MM-DD
+
+Det-Review: YYYY-MM-DD
+
+Det-Consultation: YYYY-MM-DD
+
+Det-Accepted: YYYY-MM-DD
+
+Internal-Update: YYYY-MM-DD
+
+CWE-Assigned: YYYY-MM-DD
+
+CWE-Modified: YYYY-MM-DD
+
+Final-Coord: YYYY-MM-DD
+
+CWE-Published: YYYY-MM-DD
+
+Post-Publication: YYYY-MM-DD
+
+Closed: YYYY-MM-DD
+
+
+
+
+COMMUNICATIONS LOG:
