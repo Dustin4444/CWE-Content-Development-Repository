@@ -1,8 +1,8 @@
 SUBMISSION COMMUNICATION ID: ES2303-af57ba9e
 
-ACTION TYPE: New Entry
+ACTION TYPE: Modification
 
-SUBMISSION STATUS: Init-Consultation
+SUBMISSION STATUS: Init-Accepted
 
 AFFECTED CWES: 
 
@@ -12,7 +12,7 @@ SUBMISSION DATE: 2023-03-31 16:32:59
 
 ISSUES: yes/active
 
-ISSUE DETAILS: SUB.ABS.LOWLEVEL, SUB.RELREFS, SUB.ACTION
+ISSUE DETAILS: SUB.ACTCHANGE
 
 PUBTRACKER: #55
 
@@ -68,18 +68,53 @@ Image: https://github.com/CWE-CAPEC/CWE-Content-Development-Repository/assets/18
 
 RELATED WEAKNESSES:
 
-   Other CWE-308
-   Other CWE-200
-   ChildOf CWE-522
+   ChildOf CWE-201
+   ChildOf CWE-359
+   Other CWE-522
 
 REFERENCES:
 
-Title: CWE-522: Insufficiently Protected Credentials
-URL: https://cwe.mitre.org/data/definitions/522.html
+Title: NIST Mobile Threat Catalogue - AUT-1 - Unauthorized Information Disclosure via Lockscreen
+URL: https://pages.nist.gov/mobile-threat-catalogue/authentication-threats/AUT-1.html
 
+Title: MASWE-0037: Unnecessary Exposure of Sensitive Data via Notifications
+URL: https://mas.owasp.org/MASWE/MASVS-PLATFORM/MASWE-0037/
+
+Title: Android - Notifications
+URL: https://developer.android.com/design/ui/mobile/guides/home-screen/notifications
 
 
 ACTIVE ISSUES:
+
+SUB.ACTCHANGE - "Change in action for submission"
+
+Description: The submission's action needs to change, e.g., from "New
+Entry" to "Modification," or vice versa. This potentially requires changes
+to the kinds of information that will need to be provided.
+
+Resolution: The submission cannot progress to Stage 3 (Content-Generation)
+until the informational needs are addressed.
+
+Comments: While there is a good argument for creating a new CWE entry,
+it would overlap other CWE entries in the current hierarchical
+organization, and we will not be able to make such a large adjustment
+at this time. We will address this by modifying both CWE-201
+(Insertion of Sensitive Information Into Sent Data) - which is a
+ChildOf CWE-200 - as well as CWE-359: Exposure of Private Personal
+Information to an Unauthorized Actor. Modifications will include (1)
+writing a detailed demonstrative example, using your submission as a
+basis; (2) citing some references we found, which we've added to this
+submission; (3) defining "SMS preview exposure" as an alternate term;
+(4) providing some mitigation, using information from your submission
+and the references; and (5) including Mobile within the
+Applicable_Platforms for the two entries.
+
+Response: [NO RESPONSE NECESSARY; SUBMISSION HAS BEEN ACCEPTED AS-IS.]
+
+
+----------
+
+RESOLVED ISSUES:
 
 SUB.ABS.LOWLEVEL - "Low level of abstraction"
 
@@ -157,34 +192,17 @@ resolve by providing additional details such as a section name and quote
 from the reference.  If no suitable references can be found, the CWE Team
 may decide to make an exception.
 
-Comments: The submission doesn't include any actual references. Please
-provide valid reference(s) to justify the real-world example of the issue.
+Comments: After the initial request for references, the submitter
+mentioned a "Real-world observation (2025): A major U.S.-based
+application exposes the 2FA code at the start of the SMS body, which
+allows full visibility via the message preview on a locked device. In
+contrast, a security-conscious vendor from another region places the
+code after the preview cutoff point, requiring the device to be
+unlocked." Another suggested reference did not exist with the given
+title, and a similar reference from the same source did not cover SMS
+preview exposure.
 
-Response: Thank you for the feedback. To support this submission, here
-are examples and references:
-
-Real-world observation (2025): A major U.S.-based application exposes
-the 2FA code at the start of the SMS body, which allows full
-visibility via the message preview on a locked device. In contrast, a
-security-conscious vendor from another region places the code after
-the preview cutoff point, requiring the device to be unlocked.
-
-Relevant blog posts:
-
-Twilio: Best Practices for Sending 2FA Codes – which mentions that 2FA codes should be treated as secrets.
-
-Articles and mobile development guidelines that warn about
-notification privacy and preview exposure, particularly for health
-data, finance, or authentication.
-
-The discrepancy in real-world implementations proves this is a
-practical, exploitable weakness, not merely a theoretical concern.
-
-References:
-* CWE-359: Exposure of Private Information
-* CWE-497: Exposure of Sensitive System Information
-* CWE-200: Exposure of Sensitive Information to an Unauthorized Actor
-
+Response: [NO RESPONSE NECESSARY; RESOLVED ISSUE]
 
 ----------
 
@@ -200,7 +218,8 @@ Comments: Based on the other submission issues identified above, the CWE
 team isn't clear on the next steps. We likely won't be able to accept
 this submission. 
 
-Response: The appropriate action could be either:
+Response: [RESOLVED ISSUE; NO NOT CHANGE.] The appropriate action
+could be either:
 
 Creation of a new CWE entry or variant/example under a broader class
 that captures preview-based leaks of security tokens (e.g., 2FA codes,
@@ -213,10 +232,6 @@ I am open to aligning with CWE Team’s classification guidance, but
 emphasize that the issue represents a preventable design weakness with
 real-world security impact and viable mitigations.
 
-
-----------
-
-RESOLVED ISSUES:
 
 
 
@@ -232,7 +247,7 @@ Init-Consultation: 2025-05-20
 
 Init-Declined: YYYY-MM-DD
 
-Init-Accepted: YYYY-MM-DD
+Init-Accepted: 2026-09-22
 
 Det-Requested: YYYY-MM-DD
 
@@ -265,3 +280,4 @@ COMMUNICATIONS LOG:
 2025-03-18 sent email
 2025-05-20 sent email
 2025-05-27 received comment
+2026-09-22 sent email
