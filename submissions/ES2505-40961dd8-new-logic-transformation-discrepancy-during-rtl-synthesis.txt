@@ -2,7 +2,7 @@ SUBMISSION COMMUNICATION ID: ES2505-40961dd8
 
 ACTION TYPE: New Entry
 
-SUBMISSION STATUS: Init-Consultation
+SUBMISSION STATUS: Det-Consultation
 
 AFFECTED CWES: 
 
@@ -12,7 +12,7 @@ SUBMISSION DATE: 2025-05-20 23:13:35
 
 ISSUES: yes/active
 
-ISSUE DETAILS: SUB.UNCLEAR, SUB.ABS.MULTWEAK, SUB.COORD, SUB.MISSDET
+ISSUE DETAILS: SUB.COORD, SUB.MISSDET
 
 PUBTRACKER: #152
 
@@ -22,19 +22,708 @@ GITHUBUSER: rsar97
 
 SUBMISSION TYPE: Hardware
 
-NAME: Logic Transformation Discrepancy during RTL Synthesis
+NAME: Hardware Simulation / Synthesis Mismatch
 
-DESCRIPTION:
+SUMMARY:
 
-This weakness occurs when a hardware design exhibits unintended behavior at
-the gate-level netlist that is not present at the RTL level. Such
-divergence arises due to synthesis-related artifacts - for example,
-missing signals in sensitivity lists, undefined or partially specified
-logic, a malicious user exploiting/injectung bugs through EDA Synthesis
-Tools or synthesis optimizations that alter control or data paths. These
-discrepancies lead to functional mismatches that are difficult to detect
-during RTL simulation but manifest post-synthesis, potentially causing 
-functional failures in the final chip.
+The hardware design contains structures that are interpreted
+differently during synthesis than during simulation, which cause
+inconsistencies in security-relevant behavior between the synthesized
+implementation and the simulation.
+
+
+EXTENDED DESCRIPTION:
+
+Hardware-description-language (HDL) code describes functionality which
+can be verified as correct using simulation tools. Synthesis tools
+then (automatically) convert this into a physically-realizable
+representation. Certain HDL code structures cannot be exactly
+represented, or have multiple valid representations from which the
+synthesis tool must choose. This can result in output which behaves
+differently to the (functionally-correct) HDL code. These
+“simulation/synthesis mismatches” may have security consequences.
+
+MODES OF INTRODUCTION:
+
+Phase: Implementation
+
+Note: This weakness can be introduced when HDL constructs, assignment
+ordering, synthesis directives, or tool-dependent semantics are used
+whose simulation behavior may not match synthesis
+interpretation. These constructs may behave correctly during HDL
+simulation but produce different security-relevant behavior in the
+synthesized implementation.
+
+
+Phase: Build and Compilation
+
+Note: This weakness can be introduced or exposed during synthesis when
+the synthesis tool applies assumptions, optimizations, or
+transformations to HDL structures that cannot be physically
+implemented exactly as the simulation semantics dictate, or that
+permit multiple (valid) hardware implementations. The resulting
+netlist may behave differently from the model that was verified during
+simulation.
+	
+APPLICABLE PLATFORMS:
+
+
+Language Name: Verilog
+
+Prevalence: Often
+
+Note: The weakness applies to synthesizable Verilog designs whose
+simulation semantics may differ from synthesis interpretation.
+
+
+Language Name: VHDL
+
+Prevalence: Often
+
+Note: The weakness applies to synthesizable VHDL designs whose
+simulation semantics may differ from synthesis interpretation.
+	
+
+Language Class: Hardware Description Language
+Prevalence: Often
+
+Note: The weakness is fundamentally associated with HDL-based hardware
+design and synthesis flows.
+
+
+
+
+Operating System Class: Not OS-Specific
+
+Prevalence: None
+
+Note: The weakness is introduced in hardware design artifacts and
+synthesis behavior, not in an operating-system environment.
+
+
+
+Architecture Class: Not Architecture-Specific
+
+Prevalence: None
+
+Note: The weakness is not tied to a specific processor instruction set
+architecture (ISA).
+
+
+Technology Class: System on Chip
+
+Prevalence: Sometimes
+
+Note: The weakness can occur in SoC designs when IP blocks integrated
+into SoCs contain synthesized behavior which differs from simulated
+HDL behavior.
+
+
+COMMON CONSEQUENCES:
+
+Scope: Other
+
+Impact: Varies by Context
+
+Likelihood: <<LIKELIHOOD1>>
+
+Note: The consequences depend on the affected hardware behavior. The
+synthesized implementation may make different control decisions,
+incorrectly update protected state, expose data, or fail to enforce
+restrictions that appeared to operate correctly during HDL simulation.
+
+
+DEMONSTRATIVE EXAMPLES:
+
+
+INTRO TEXT:
+
+A hardware designer implements an access control latch which takes in
+lock and unlock signals (which are only active for a single cycle) and
+a reset signal, and outputs an unlocked state signal. During
+operation, the unlocked signal is synchronously set high by the unlock
+input and set low by the lock input. The unlocked signal also intended
+to be low from startup and set low by reset.
+
+BAD CODE:
+LANGUAGE: Verilog
+
+module lock_control (
+    input  wire clk,
+    input  wire reset,
+    input  wire lock,
+    input  wire unlock,
+    output reg  unlocked
+);
+ 
+    reg unlocked_next = 1'b0;[h]
+ 
+    always @(lock or unlock or unlocked) begin
+        if (reset == 1'b1) begin
+            unlocked_next = 1'b1; 
+        end else if (lock == 1'b1) begin
+            unlocked_next = 1'b0; 
+        end else if (unlock == 1'b1) begin
+            unlocked_next = 1'b1; 
+        end else begin
+            unlocked_next = unlocked; 
+        end
+    end
+ 
+    always @(posedge clk) begin
+        unlocked <= unlocked_next;
+    end
+ 
+endmodule
+
+
+
+BAD CODE:
+LANGUAGE: VHDL
+
+library ieee;
+use ieee.std_logic_1164.all;
+ 
+entity lock_control is
+        port (
+            clk      : in  std_logic;
+            reset    : in  std_logic;
+            lock     : in  std_logic;
+            unlock   : in  std_logic;
+            unlocked : out std_logic
+        );
+end entity lock_control;
+ 
+architecture behavioral of lock_control is
+        signal unlocked_reg  : std_logic:=’0’;
+        signal unlocked_next : std_logic;
+begin
+ 
+        process(lock, unlock, unlocked_reg)
+        begin
+            if reset = '1' then
+                unlocked_next <= '1';
+            elsif lock = '1' then
+                unlocked_next <= '0';
+            elsif unlock = '1' then
+                unlocked_next <= '1';
+            else
+                unlocked_next <= unlocked_reg;
+            end if;
+        end process;
+ 
+        process(clk)
+        begin
+            if rising_edge(clk) then
+                unlocked_reg <= unlocked_next;
+            end if;
+        end process;
+ 
+        unlocked <= unlocked_reg;
+ 
+end architecture behavioral; 
+	
+
+EXPLANATORY TEXT:
+
+The always block is intended to describe combinational logic for
+unlocked_next, which depends on four signals (lock, unlock, unlocked
+and reset). However, the sensitivity list is missing reset.  During
+pre-synthesis RTL simulation, this tells the simulator not to rerun
+the block when reset changes (only when the other signals change). The
+signal unlocked_next defaults to 1’b0 so the simulation sees the
+expected locked state and so the tests of the state after reset will
+pass.  Synthesis tools assume a complete sensitivity list and will
+therefore infer logic including the reset signal. When reset is high,
+the unlocked _next signal is (erroneously) set to 1’b1. This is a bug
+(as reset should force a non-unlocked state), which would be expected
+to be found in simulation. The design uses a two-process state machine
+style which masks this bug in the code during simulation, but allows
+it to propagate to the synthesized implementation.
+
+EXPLANATORY TEXT:
+
+The synthesized hardware exits reset in an insecure state (with
+unlocked set to 1’b1) and remains in that state until one of the
+lock/unlock signals changes state. An adversary can take advantage of
+this by exploiting whatever logic makes use of this signal to set
+itself to a secure state.
+
+EXPLANATORY TEXT:
+
+GOOD CODE:
+LANGUAGE: <<LANGUAGE>>
+
+For combinational logic, ensure that simulation is triggered by every
+signal read by the block. This can be done by listing both inputs
+explicitly, but this is not recommended.
+
+A safer and more maintainable approach is to use (in Verilog) always
+@*, which tells the simulator to include all signals used inside the
+block. In SystemVerilog, use always_comb. In VHDL use process(all).
+
+
+EXPLANATORY TEXT:
+
+This demonstrative example was generated with assistance from Gemini
+(for the coding syntax) inspired by the incomplete sensitivity list
+example in Section 2.1 [REF-A]. The original paper explains how
+Verilog always blocks with incomplete sensitivity lists can simulate
+differently from the logic inferred during synthesis. This example
+reframes that technical pattern as a hardware security example
+involving privileged access logic, while preserving the underlying
+simulation/synthesis mismatch described in [REF-A].
+
+
+
+----
+
+INTRO TEXT:
+
+A hardware developer is debugging logic which requires the system to
+be in an unprotected mode.  In order to enable their work, they have
+(temporarily) removed some code related to the
+“protected_mode_enabled” flag in a way that does not cause the
+simulations to fail.
+
+BAD CODE:
+LANGUAGE: VHDL
+
+signal secure     : boolean; -- implicitly initialized to ‘false’
+signal policy_ok  : boolean;
+signal lock_ready : boolean;
+
+...
+
+-- synthesis translate_off
+secure <= security_check(policy_ok, lock_ready); -- TODO: restore this after debugging
+-- synthesis translate_on
+
+protected_mode_enabled <= secure;
+	
+BAD CODE:
+LANGUAGE: Verilog
+
+reg secure; 
+wire policy_ok;
+wire lock_ready;
+wire protected_mode_enabled;
+
+...
+
+always @(*) begin
+   secure = 1'b0; // default value
+
+   // synopsys translate_off
+   secure = security_check(policy_ok, lock_ready); // TODO: restore this after debugging
+   // synopsys translate_on
+end
+
+assign protected_mode_enabled = secure;
+	
+EXPLANATORY TEXT:
+
+The design assigns the security-relevant secure signal using logic
+that is hidden from synthesis by translate_off / translate_on or
+equivalent synthesis exclusion directives. Simulation tools treat
+these directives as comments and include the enclosed assignment, so
+simulation updates secure according to security_check(policy_ok,
+lock_ready) and appears to validate the intended protected-mode
+behavior.
+
+Synthesis tools omit the code between the exclusion directives. The
+synthesized implementation therefore does not contain the same
+assignment that was exercised during simulation. This creates a
+simulation/synthesis mismatch in security-relevant behavior: the HDL
+model used for verification enables or disables protected mode using
+logic that is absent from the synthesized hardware.
+
+EXPLANATORY TEXT:
+
+Because the synthesized implementation does not include the same logic
+that was present during simulation, the hardware defaults to an
+insecure state. An attacker can take advantage of this to execute
+activities which would normally require some form of authorization,
+even though simulation results suggested that protected mode would be
+enforced.
+
+GOOD CODE:
+LANGUAGE: <<LANGUAGE>>
+
+Do not place security-relevant assignments inside synthesis-excluded
+regions. Any logic that affects protected-mode behavior should be
+represented consistently in both simulation and synthesis.
+
+Limit synthesis translate_off / synthesis translate_on regions to
+simulation-only code that cannot assign, modify, override, or mask
+security-sensitive signals.
+
+Carefully review all uses of translate_on/off directives.
+
+Ensure that developers can efficiently authorize their activities
+during development work, to avoid the temptation to bypass security
+features in this way.
+
+GOOD CODE:
+LANGUAGE: VHDL
+
+signal secure     : boolean; -- implicitly initialized to ‘false’
+signal policy_ok  : boolean;
+signal lock_ready : boolean;
+
+...
+
+secure <= security_check(policy_ok, lock_ready);
+
+protected_mode_enabled <= secure;
+	
+GOOD CODE:
+LANGUAGE: Verilog
+
+reg secure;
+wire policy_ok;
+wire lock_ready;
+wire protected_mode_enabled;
+
+...
+
+always @(*) begin
+  secure = security_check(policy_ok, lock_ready);
+end
+
+assign protected_mode_enabled = secure;
+
+-----
+
+INTRO TEXT:
+
+A hardware developer is designing a controller that manages whether
+protected configuration registers can be written. The controller
+includes states for reset handling, user-level operation, and
+privileged operation.
+
+
+BAD CODE:
+LANGUAGE: VHDL
+
+type t_priv_state is (RESET, USER_ONLY, PRIVILEGED);
+
+signal priv_state       : t_priv_state := RESET;
+signal auth_passed      : boolean := false;
+signal privilege_revoke : boolean := false;
+
+...
+
+process(clk, reset_n)
+begin
+  if reset_n = '0' then
+    priv_state <= RESET;
+  elsif rising_edge(clk) then
+    case priv_state is
+      when RESET =>
+        priv_state <= USER_ONLY;
+
+      when USER_ONLY =>
+        if auth_passed then
+          priv_state <= PRIVILEGED;
+        end if;
+
+      when PRIVILEGED =>
+        if privilege_revoke then
+          priv_state <= USER_ONLY;
+        end if;
+
+      when others =>
+        priv_state <= USER_ONLY; -- intended recovery for unexpected encodings
+    end case;
+  end if;
+end process;
+
+protected_cfg_write_en <= (priv_state = PRIVILEGED);
+	
+GOOD CODE:
+LANGUAGE: Verilog
+
+localparam RESET      = 2'b00;
+localparam USER_ONLY  = 2'b01;
+localparam PRIVILEGED = 2'b10;
+
+
+reg [1:0] priv_state    = RESET;
+wire      auth_passed;       // Implicitly 1-bit (boolean equivalent)
+wire      privilege_revoke;  // Implicitly 1-bit (boolean equivalent)
+wire      clk;
+wire      reset_n;
+wire      protected_cfg_write_en;
+
+
+...
+
+
+always @(posedge clk or negedge reset_n) begin
+    if (!reset_n) begin
+        priv_state <= RESET;
+    end else begin
+        case (priv_state)
+            RESET: begin
+                priv_state <= USER_ONLY;
+            end
+            
+            USER_ONLY: begin
+                if (auth_passed) begin
+                    priv_state <= PRIVILEGED;
+                end
+            end
+            
+            PRIVILEGED: begin
+                if (privilege_revoke) begin
+                    priv_state <= USER_ONLY;
+                end
+            end
+            
+            default: begin
+                priv_state <= USER_ONLY; // Recovery for unexpected encodings
+            end
+        endcase
+    end
+end
+
+
+assign protected_cfg_write_en = (priv_state == PRIVILEGED);
+	
+EXPLANATORY TEXT:
+
+The design relies on a clause or default branch to express recovery
+behavior for state values not explicitly listed in the state
+transition logic. In the RTL simulation model, the intended behavior
+is that unexpected controller states will transition to USER_ONLY,
+where protected configuration writes are blocked.
+
+The error is assuming that this RTL-level recovery behavior will
+necessarily be preserved after synthesis. During synthesis, the state
+machine may be encoded, optimized, or transformed based on the states
+considered reachable during normal operation. As a result, logic
+associated with unused or faulty hardware encodings may be removed or
+altered, and the synthesized implementation may not preserve the same
+recovery behavior that appeared in RTL simulation.
+
+EXPLANATORY TEXT:
+
+If the synthesized implementation does not preserve the
+unexpected-state recovery behavior, the hardware may fail to return to
+USER_ONLY after a fault, reset anomaly, voltage glitch, clock
+disturbance, or other condition that places the state storage into an
+unintended encoding.
+
+An attacker who can induce or influence such conditions may be able to
+leave protected configuration writes enabled, or cause them to become
+enabled, even though simulation suggested that unexpected state values
+would be forced into a state where those writes are blocked.
+
+GOOD CODE:
+LANGUAGE: <<LANGUAGE>>
+
+Do not rely on an HDL others or default branch to guarantee
+post-synthesis recovery behavior for security-critical state
+machines. If recovery from unexpected state encodings affects access
+to protected configuration registers, the implementation should not
+depend on synthesis inferring and preserving that behavior from RTL
+alone.
+
+For this type of security-critical controller, implement the state
+machine using a carefully-controlled structural or hand-synthesized
+representation where the relevant state elements, reset behavior,
+transition logic, and fail-closed recovery behavior are explicit. Be
+careful that the synthesiser does not infer a state machine from the
+crafted logic, and “undo” the work. Review the resulting gate-level or
+structural implementation to confirm that unintended encodings are
+handled as required.
+
+Perform post-synthesis simulations where faults are injected into the
+state registers and confirm the behaviour.
+
+Perform formal analysis to prove that the behavior of these critical
+blocks has not been altered by the synthesis process.
+
+After the implementation is verified and validated, preserve it during
+integration so later synthesis or whole-design optimization does not
+re-encode, merge, remove, or otherwise transform the security-critical
+recovery logic.
+
+This approach is costly and design-specific, but it is appropriate
+when relying on ordinary RTL synthesis would create unacceptable
+security risk.
+
+
+OBSERVED EXAMPLES:
+
+ID: CVE-2025-51678
+
+Link: https://www.cve.org/CVERecord?id=CVE-2025-51678
+
+ObexSummary: The synthesized netlist incorrectly calculates memory
+addresses and fetches co-processor instructions, potentially causing
+unintended memory accesses or incorrect custom-instruction execution.
+
+
+ID: CVE-2025-51677
+
+Link: https://www.cve.org/CVERecord?id=CVE-2025-51677
+
+ObexSummary: Debug-load requests should return complete load store
+unit (LSU) data, but the synthesized netlist returned incomplete data,
+potentially causing incorrect interpretation of memory state.
+
+
+ID: CVE-2025-51679
+
+Link: https://www.cve.org/CVERecord?id=CVE-2025-51679
+
+ObexSummary: Instruction execution should update program-counter state
+correctly, but the synthesized netlist produced incomplete or
+undefined updates, potentially causing unintended control
+flow.
+
+
+ID: CVE-2025-51675
+
+Link: https://www.cve.org/CVERecord?id=CVE-2025-51675
+
+ObexSummary: The program counter should update when the
+next-program-counter value changes, but the synthesized netlist
+allowed stale PC state, potentially causing incorrect instruction
+fetches or stalls.
+
+
+DETECTION METHODS:
+
+
+Method: Automated Static Analysis - Source Code
+
+Desc: HDL linting, rule-based static analysis, and HDL checker tools
+can examine source code for structures that may be interpreted
+differently by simulation and synthesis tools. They may identify
+synthesis-sensitive coding patterns associated with this weakness.
+
+Effectiveness: Moderate
+
+Notes: This method can be useful for detecting potential coding
+issues, but it may not reveal whether these constructs result in
+observable behavioral divergence after synthesis. Moreover, a user may
+suppress or bypass these warnings and still produce the erroneous
+synthesized hardware implementation. This method can give false
+positives.
+
+
+
+Method: Manual Analysis
+
+Desc: Synthesis warning review can examine synthesis logs and reports
+for tool messages associated with possible simulation/synthesis
+mismatch. It may identify ignored constructs, unsupported HDL
+semantics, synthesis assumptions, or optimizations that could affect
+security-relevant behavior.
+
+Effectiveness: Low
+
+Notes: Can reveal potential synthesis issues but relies on engineers
+interpreting warnings. Moreover, a user may suppress or bypass these
+warnings and still produce the erroneous synthesized hardware
+implementation.
+
+
+Method: <<METHOD3>>
+
+Desc: <<put the information here>>
+
+Effectiveness: <<EFFECTIVENESS3>>
+
+Notes: <<put the information here>>
+
+Method: Formal Verification 
+
+Desc: HDL-source-to-netlist formal equivalence checking can examine
+the simulated model and synthesized netlist for behavioral mismatch
+associated with this weakness. It may identify non-equivalent outputs,
+failed compare-points, state-mapping issues, or counterexamples under
+the checked constraints.
+
+Effectiveness: Moderate
+
+Notes: Formal equivalence checking can be effective at the IP level
+for identifying mismatches between the source-code model and
+synthesized implementation. However, effectiveness may decrease as
+design complexity grows, particularly at the SoC level, due to
+state-space expansion and difficulty mapping non-equivalent
+points. Synthesis optimizations may merge, eliminate, or rename
+signals, which can also produce false positives or require additional
+setup to account for expected transformations.
+
+
+
+Method: Simulation / Emulation
+
+Desc: Cross-simulation across HDL-source and post-synthesis models can
+examine both abstraction levels for observable behavioral divergence
+associated with this weakness. It may identify mismatches when
+security-relevant behaviors are explicitly exercised.
+
+Effectiveness: High
+
+Notes: This method can be useful for detecting observable behavioral
+mismatches, but it may not exercise all execution scenarios and should
+be combined with other detection methods to improve coverage.
+
+
+
+Method: Fuzzing
+
+Desc: Coverage-guided differential fuzzing can examine HDL source code
+and synthesized implementation models for behavioral divergence
+associated with this weakness. It may identify generated inputs or
+state conditions that expose synthesis-induced mismatches.
+
+Effectiveness: High
+
+Notes: This method can be useful for detecting previously unknown
+synthesis-induced behavioral mismatches by exploring diverse execution
+paths through coverage-guided input generation. However, it may not
+exercise every reachable design state and should be combined with
+other detection methods to improve coverage.
+
+
+POTENTIAL MITIGATIONS:
+
+Phase: <<PHASE1>>
+
+Description: <<put the information here>>
+
+Effectiveness: <<EFFECT1>>
+
+Effectiveness Notes: <<put the information here>>
+
+Architecture and Design; Implementation; Verification
+	Establish and enforce HDL coding and review practices that minimize differences between simulation semantics and synthesis interpretation. Avoid HDL constructs, synthesis directives, and tool-dependent behaviors known to cause simulation/synthesis mismatch, with particular attention to security-relevant logic.
+	High
+	Avoidance of the patterns of code which can result in these errors removes the opportunity for error.
+However, in some cases (notably state machine encodings) this can be very difficult to achieve efficiently.
+
+
+Phase: <<PHASE1>>
+
+Description: <<put the information here>>
+
+Effectiveness: <<EFFECT1>>
+
+Effectiveness Notes: <<put the information here>>
+
+Architecture and Design; Implementation
+	For especially security-critical logic, consider implementation approaches that reduce reliance on aggressive synthesis transformation. This may include constraining optimization, preserving selected logic structures, or using hardened/manual implementations for critical blocks.
+
+Limited
+	This mitigation removes the structures which cause the problem, at the expense of additional design and verification effort, and additional risk of inclusion of other functional errors. 
+
+
 
 
 RELATED WEAKNESSES:
@@ -43,14 +732,69 @@ RELATED WEAKNESSES:
 
 REFERENCES:
 
-Title: arXiv paper link
-URL: https://www.arxiv.org/abs/2504.18812
+Title: [REF-A] RTL Coding Styles That Yield Simulation and Synthesis Mismatches
 
-Title: A document will all the bug descriptions
-URL: https://docs.google.com/document/d/1Ncgm1C-flRX8biyLLOcgzGHd1-kxk-oTRf4Q6nF8nEo/edit?usp=sharing
+URL: https://www.researchgate.net/profile/Clifford-Cummings/publication/228554783_RTL_Coding_Styles_That_Yield_Simulation_and_Synthesis_Mismatches/links/54bfe9760cf21674ce9ca726/RTL-Coding-Styles-That-Yield-Simulation-and-Synthesis-Mismatches.pdf
 
-Title: Consolidated Excel Sheet with design locations, sample attack vectors etc
-URL: https://docs.google.com/spreadsheets/d/1FlUX9KU7GLk6c8m5ApkEKR2zhLWdCV47u0HNJ-jfF1U/edit?usp=sharing
+Author: Don Mills, Clifford E. Cummings
+
+Date: 1999
+
+
+Title: SynFuzz: Leveraging Fuzzing of Netlist to Detect Synthesis Bugs
+
+URL: https://arxiv.org/abs/2504.18812
+
+Author: Raghul Saravanan, Sudipta Paria, Aritra Dasgupta, Venkat Nitin Patnala, Swarup Bhunia, Sai Manoj P. D.
+
+Date: 2025-04-26
+
+
+Title: The Dangers of Living with an X (bugs hidden in your Verilog)
+
+URL: https://developer.arm.com/documentation/arp0009/a/?lang=en
+
+Author: Mike Turpin
+
+Date: 2003-10-14
+
+
+Title: Standard Gotchas: Subtleties in the Verilog and SystemVerilog Standards That Every Engineer Should Know
+
+URL: https://sutherland-hdl.com/papers/2006-SNUG-Boston_standard_gotchas_paper.pdf
+
+Author: Stuart Sutherland, Don Mills
+
+Date: 2006
+
+
+Title: Lost in Translation: Enabling Confused Deputy Attacks on EDA Software with TransFuzz
+
+URL: https://www.usenix.org/conference/usenixsecurity25/presentation/solt
+
+Author: Flavien Solt, Kaveh Razavi
+
+Date: August 2025
+
+
+Title: Yet Another Latch and Gotchas Paper
+
+URL: https://lcdm-eng.com/papers/snug12_Paper_final.pdf
+
+Author: Don Mills
+
+Date: 2012
+
+
+Title: “full_case parallel_case”, the Evil Twins of Verilog Synthesis
+
+URL: https://csg.csail.mit.edu/6.375/6_375_2009_www/papers/cummings-case-snug99.pdf
+
+Author: Clifford E. Cummings
+
+Date: 1999
+
+Draft working document
 
 
 ACTIVE ISSUES:
@@ -67,7 +811,8 @@ Comments: This submission originated from two separate people. Both
 people will need to be credited in the Submission element(s) once this
 is published.
 
-Response: <SUBMITTER SHOULD REPLY HERE>
+Response: [NO RESPONSE NECESSARY; CWE TEAM MUST RESOLVE THIS DURING
+INTERNAL-UPDATE.]
 
 ----------
 
@@ -84,18 +829,41 @@ Resolution: The submission cannot progress past the Init-Consultation or
 Det-Consultation phases until sufficient consensus has been reached, or if
 the CWE Team decides to move the submission to the next phase.
 
-Comments: There has been strong interest from multiple parties
-involving security concerns related to RTL, but there are indications
-that there may be multiple weaknesses (see SUB.ABS.MULTWEAK), and the
-issues are not necessarily clearly described as weaknesses (see
+Comments: There was strong interest from multiple parties involving
+security concerns related to RTL, but there were indications that
+there may be multiple weaknesses (see SUB.ABS.MULTWEAK), and the
+issues were not necessarily clearly described as weaknesses (see
 SUB.UNCLEAR).  In December 2025, the CWE Team formed an Ad-Hoc RTL
 Working Group to focus technical discussion around weaknesses related
-to RTL.  This group's work will include and influence the contents of
-this submission, but it might take time to reach the appropriate
-conclusions.
+to RTL. As of September 2026, the Ad-Hoc RTL Working Group has
+clarified the weakness(es) identified by the original submitter. This
+submission is being updated to reflect the group's modifications as of
+September 14.
 
-Response: [NO RESPONSE NECESSARY; SUBMITTER IS AWARE OF THE WORKING
+Response: [NO RESPONSE NECESSARY; ISSUES TO BE RESOLVED BY THE WORKING
 GROUP.]
+
+
+RESOLVED ISSUES:
+
+SUB.ABS.MULTWEAK - "Multiple weaknesses"
+
+Description: The submission describes or suggests multiple independent
+weaknesses that each might deserve a separate CWE ID.
+
+Resolution: The submission cannot progress past the consultation phase
+until the number of relevant weaknesses is identified. If there are
+multiple weaknesses, separate names and descriptions are needed.
+
+Comments: As originally described in SUB.UNCLEAR, there were
+indications that there may be multiple weaknesses involved that can
+cause unintended behavior. This submission was discussed in multiple
+meetings and threads with the RTL Ad-Hoc Working Group, and it has
+been resolved to cover "Simulation/Synthesis" mismatches. Additional
+weaknesses might be covered at a later time as a result of continued
+discussion within the RTL Working Group.
+
+Response: [RESOLVED ISSUE; DO NOT CHANGE]
 
 ----------
 
@@ -108,53 +876,13 @@ cause the submission to be incorrectly mapped to.
 Resolution: A submission cannot progress past the consultation phase until
 SUB.UNCLEAR is addressed.
 
-Comments: While the description highlights "unintended
-behavior... that is not present at the RTL level," it does not
-sufficiently explain what errors (weaknesses) caused this behavior, or
-what the security implications are.  There are indications of multiple
-errors, such as "missing signals in sensitivity lists" and
-"optimizations that alter control or data paths." However, there needs
-to be deeper analysis to more clearly indicate the specific weakness
-(or weaknesses) that are involved. It is important to note that there
-is other CWE coverage for "disrepancies" or "mismatches" such as
-CWE-1068: Inconsistency Between Implementation and Documented Design,
-and CWE-733: Compiler Optimization Removal or Modification of
-Security-critical Code. For issues related to state, there might be
-options such as CWE-1250: Improper Preservation of Consistency Between
-Independent Representations of Shared State. Finally, section 6 of the
-cited paper for CLiMA (Compromised Library Mapping Attack) may map to
-CWE-1357: Reliance on Insufficiently Trustworthy Component: "during
-the synthesis process, library binaries provided by fabrication
-vendors are fed to the EDA synthesis SynFuzz: Leveraging Fuzzing of
-Netlist to Detect Synthesis Bugs tool to map the design to library
-gate cells. However, an adversary or a malicious library vendor can
-exploit the optimizations of the EDA tool to manipulate the mapping
-process and create a malicious version of the hardware."
+Comments: Further discussion of the original submission by the RTL
+Ad-Hoc Working Group during mid-2026 narrowed the issue down to
+"Simulation/Synthesis Mismatch". In Stage 2, the raw submission text
+will be updated to reflect detailed discussion by the WG.  Additional
+weaknesses will be covered separately; see SUB.ABS.MULTWEAK.
 
-Response: [NO RESPONSE NECESSARY; WORK TO CONTINUE WITHIN THE WORKING GROUP].
-
-----------
-
-SUB.ABS.MULTWEAK - "Multiple weaknesses"
-
-Description: The submission describes or suggests multiple independent
-weaknesses that each might deserve a separate CWE ID.
-
-Resolution: The submission cannot progress past the consultation phase
-until the number of relevant weaknesses is identified. If there are
-multiple weaknesses, separate names and descriptions are needed.
-
-Comments: As described in SUB.UNCLEAR, there are indications that
-there may be multiple weaknesses involved that can cause unintended
-behavior. These will be determined as a result of active discussion
-within the RTL Working Group.
-
-Response: [NO RESPONSE NECESSARY; WORK TO CONTINUE WITHIN THE WORKING GROUP].
-
-
-
-RESOLVED ISSUES:
-
+Response: [NO RESPONSE NECESSARY; ISSUES HAS BEEN CLARIFIED.].
 
 
 TIMELINE:
@@ -169,15 +897,15 @@ Init-Consultation: 2026-02-05
 
 Init-Declined: YYYY-MM-DD
 
-Init-Accepted: YYYY-MM-DD
+Init-Accepted: 2026-04-29
 
-Det-Requested: YYYY-MM-DD
+Det-Requested: 2026-05-26
 
-Det-Received: YYYY-MM-DD
+Det-Received: 2026-07-13
 
 Det-Review: YYYY-MM-DD
 
-Det-Consultation: YYYY-MM-DD
+Det-Consultation: 2026-07-13
 
 Det-Accepted: YYYY-MM-DD
 
@@ -201,4 +929,29 @@ Closed: YYYY-MM-DD
 COMMUNICATIONS LOG:
 2025-05-27 sent email
 2025-08-18 sent email
+2025-12-18 action meeting
+2026-01-28 action meeting
 2026-02-05 sent email
+2026-03-30 action meeting
+2026-04-16 sent email
+2026-04-29 received comment
+2026-04-29 action phase-change
+2026-05-26 sent email
+2026-05-26 action phase-change
+2026-06-01 sent email
+2026-06-25 sent email
+2026-07-10 sent email
+2026-07-11 sent email
+2026-07-13 sent email
+2026-07-13 sent email
+2026-07-13 action phase-change
+2026-07-13 action meeting
+2026-07-23 sent email
+2026-08-01 received email
+2026-08-10 action meeting
+2026-08-11 sent email
+2026-08-07 sent email
+2026-08-21 sent email
+2026-08-24 action meeting
+2026-08-24 sent email
+2026-09-14 action update
